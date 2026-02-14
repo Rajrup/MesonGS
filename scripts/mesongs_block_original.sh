@@ -1,19 +1,17 @@
-# SCENE=mic
-DATASET=db
-SCENE=drjohnson
-ITERS=0 # 0 for compression without finetuning.
-DATAPATH=/home/rajrup/Project/MesonGS/data/$DATASET/$SCENE
-INITIALPATH=/home/rajrup/Project/MesonGS/output/$DATASET/$SCENE/point_cloud/iteration_30000/point_cloud.ply
+SCENE=mic
+ITERS=8000
+DATAPATH=/your/path/to/nerf_synthetic/$SCENE
+INITIALPATH=/your/path/to/output/$SCENE/point_cloud/iteration_30000/point_cloud.ply
 CONFIG=config3
-CSVPATH=/home/rajrup/Project/MesonGS/exp_data/csv/$DATASET/$SCENE\_$CONFIG.csv
-SAVEPATH=/home/rajrup/Project/MesonGS/output/$DATASET/$SCENE\_$CONFIG
+CSVPATH=/your/path/to/exp_data/csv/$SCENE\_$CONFIG.csv
+SAVEPATH=/your/path/to/output/$SCENE\_$CONFIG
 
 LSEG=0 # using the pre-written config, so do not use the LSED config.
 CB=0 # same as LSEG
 DEPTH=0 # same as LSEG
 
-mkdir -p /home/rajrup/Project/MesonGS/exp_data/csv/$DATASET/
-CUDA_VISIBLE_DEVICES=0 python mesongs.py -s $DATAPATH \
+
+CUDA_VISIBLE_DEVICES=3 python mesongs.py -s $DATAPATH \
     --given_ply_path $INITIALPATH \
     --num_bits 8 \
     --save_imp --eval \
