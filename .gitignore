@@ -246,5 +246,6 @@ data
 data/*
 scripts/mesongs_mip360.sh
 scripts/render_test.sh
-
+**/build/
+*.egg-info/
 *.code-workspace

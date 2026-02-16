@@ -121,6 +121,7 @@ class Scene:
             print('save_npz gaussians:', pc_path)
             self.gaussians.save_full_npz(os.path.join(pc_path, "pc_npz"), pipe, per_channel_quant=per_channel_quant, per_block_quant=per_block_quant)
         else:
+            breakpoint()
             self.gaussians.save_npz(os.path.join(pc_path, "pc_npz"), pipe, per_channel_quant=per_channel_quant, per_block_quant=per_block_quant)
         return os.path.getsize(os.path.join(pc_path, "pc_npz", "bins.zip"))
         

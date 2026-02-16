@@ -710,6 +710,7 @@ def training(dataset, opt, pipe, testing_iterations, given_ply_path=None):
     scene = Scene(dataset, gaussians, given_ply_path=given_ply_path)
     
     gaussians.training_setup(opt)
+    print("Number of Gaussians before pruning:", gaussians.get_xyz.shape[0])
 
     bg_color = [1, 1, 1] if dataset.white_background else [0, 0, 0]
     background = torch.tensor(bg_color, dtype=torch.float32, device="cuda")
@@ -718,26 +719,35 @@ def training(dataset, opt, pipe, testing_iterations, given_ply_path=None):
     # print('nspd_mask.shape', nspd_mask.shape)
     
     with torch.no_grad():
+        print("Calculating importance...")
         imp = cal_imp(gaussians, scene.getTrainCameras(), pipe, background)
     # imp = cal_sens(gaussians, scene.getTrainCameras(), pipe, background)
 
+    print("Generating Prune Mask ({}%)...".format(dataset.percent))
     pmask = prune_mask(dataset.percent, imp)
     imp = imp[torch.logical_not(pmask)]
 
+    print("Pruning Gaussians...")
     gaussians.prune_points(pmask)
-    
+    print("Number of Gaussians after pruning:", gaussians.get_xyz.shape[0])
+
+    print("Octree Coding...")
     gaussians.octree_coding(
         imp,
         dataset.oct_merge,
         raht=dataset.raht
     )
-    
+    print("Number of Gaussians after octree coding:", gaussians.get_xyz.shape[0])
+
+    print("Initializing Block Quantizers...")
     if dataset.per_block_quant:
         gaussians.init_qas(dataset.n_block)
 
+    print("Vector Quantizing Features...")
     gaussians.vq_fe(imp, dataset.codebook_size, dataset.batch_size, dataset.steps)
         
     print('Test Model (offline)...')
+    breakpoint()
     with torch.no_grad():
         psnr_val, ssim_val, lpips_val = evaluate_test(
             scene,
@@ -746,6 +756,7 @@ def training(dataset, opt, pipe, testing_iterations, given_ply_path=None):
             background,
             iteration=0
         )
+        breakpoint()
         zip_size = scene.save_ft("0", pipe, per_channel_quant=dataset.per_channel_quant, per_block_quant=dataset.per_block_quant)
         zip_size = zip_size / 1024 / 1024 # to MB
         row = []
@@ -757,6 +768,7 @@ def training(dataset, opt, pipe, testing_iterations, given_ply_path=None):
         f.close()
         print("Testset Evaluating {}. PSNR: {}, SSIM: {}, LIPIS: {}".format(0, psnr_val, ssim_val, lpips_val, zip_size))
     
+    print("Finetuning Setup...")
     gaussians.finetuning_setup(opt)
 
     iter_start = torch.cuda.Event(enable_timing = True)
@@ -767,6 +779,7 @@ def training(dataset, opt, pipe, testing_iterations, given_ply_path=None):
     progress_bar = tqdm(range(opt.iterations), desc="Training progress")
     psnr_train = 0
     for iteration in range(1, opt.iterations + 1):    
+        print("Finetuning Iteration {}...".format(iteration))
         iter_start.record()
 
         # Every 1000 its we increase the levels of SH up to a maximum degree

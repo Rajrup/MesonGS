@@ -20,7 +20,7 @@ pip install numpy==1.26.4
 pip install opencv-python==4.11.0.86
 pip install mkl==2023.2.0
 pip install open3d==0.18.0
-pip install plyfile tqdm einops scipy trimesh Ninja seaborn loguru pandas mediapy
+pip install plyfile tqdm einops scipy trimesh Ninja seaborn loguru pandas mediapy tensorboard
 pip install torch_scatter==2.1.2 -f https://data.pyg.org/whl/torch-2.4.0+cu121.html
 
 pip install submodules/diff-gaussian-rasterization --no-build-isolation

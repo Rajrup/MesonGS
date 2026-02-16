@@ -1175,7 +1175,8 @@ class GaussianModel:
         for i in range(ntk.shape[0]):
             features_rest[i] = cb[int(ntk[i])]
         self.n_sh = (self.max_sh_degree + 1) ** 2
-        self._features_rest = nn.Parameter(features_rest.to("cuda")).contiguous().reshape(-1, self.n_sh - 1, 3).requires_grad_(False)
+        features_rest = features_rest.to("cuda").contiguous().reshape(-1, self.n_sh - 1, 3)
+        self._features_rest = nn.Parameter(features_rest, requires_grad=False)
         
         # self._features_rest = nn.Parameter(
         #     torch.matmul(
@@ -1289,9 +1290,9 @@ class GaussianModel:
         # scale_chk = torch.tensor(np.load('/home/szxie/mesongs/duipai/scale_cpu.npy'), dtype=torch.float, device='cuda')
         # print(torch.sum(torch.square(scale_chk - de_scale)))
         
-        self._opacity = nn.Parameter(raht_features[:, :1].requires_grad_(False))
-        self._euler = nn.Parameter(raht_features[:, 1:4].nan_to_num_(0).requires_grad_(False))
-        self._features_dc = nn.Parameter(raht_features[:, 4:].unsqueeze(1).requires_grad_(False))
+        self._opacity = nn.Parameter(raht_features[:, :1].detach(), requires_grad=False)
+        self._euler = nn.Parameter(raht_features[:, 1:4].nan_to_num_(0).detach(), requires_grad=False)
+        self._features_dc = nn.Parameter(raht_features[:, 4:].unsqueeze(1).detach(), requires_grad=False)
         # print('max euler', torch.max(self._euler))
         
         self.active_sh_degree = self.max_sh_degree
