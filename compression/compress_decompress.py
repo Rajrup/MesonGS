@@ -2,6 +2,7 @@ import torch
 import io
 import os
 import numpy as np
+import time
 
 from scene import GaussianModel
 from arguments import ModelParams
@@ -61,8 +62,10 @@ def encode_mesongs(gaussians: GaussianModel, dataset_args: ModelParams, imp: tor
 
     # 1. Octree Coding
     print("Octree Coding...")
+    start_time = time.perf_counter()
     gaussians.octree_coding(imp, dataset_args.oct_merge, raht=dataset_args.raht)
-    print(f"Points after Octree: {gaussians.get_xyz.shape[0]}")
+    end_time = time.perf_counter()
+    print(f"Octree Coding time: {(end_time - start_time) * 1000:.2f} ms")
 
     # 2. Init Block Quantizers
     print("Initializing Block Quantizers...")
@@ -71,7 +74,10 @@ def encode_mesongs(gaussians: GaussianModel, dataset_args: ModelParams, imp: tor
 
     # 3. Vector Quantization
     print("Vector Quantizing Features...")
+    start_time = time.perf_counter()
     gaussians.vq_fe(imp, dataset_args.codebook_size, dataset_args.batch_size, dataset_args.steps)
+    end_time = time.perf_counter()
+    print(f"Vector Quantizing Features time: {(end_time - start_time) * 1000:.2f} ms")
 
     # 4. Compression
     print("Compressing...")
@@ -84,9 +90,13 @@ def encode_mesongs(gaussians: GaussianModel, dataset_args: ModelParams, imp: tor
         cb = gaussians._features_rest.detach().contiguous().cpu().numpy()
 
         # RAHT forward (single pass)
+        start_time = time.perf_counter()
         cf, ac_data = _raht_forward(gaussians)
+        end_time = time.perf_counter()
+        print(f"RAHT forward time: {(end_time - start_time) * 1000:.2f} ms")
 
         # Calibrate + Quantize AC coefficients (7 channels)
+        start_time = time.perf_counter()
         qa_cnt = 0
         qci, trans_ac, qa_cnt = _calibrate_and_quantize(ac_data, gaussians.qas, qa_cnt, n_block)
         trans_array.extend(trans_ac)
@@ -98,12 +108,16 @@ def encode_mesongs(gaussians: GaussianModel, dataset_args: ModelParams, imp: tor
 
         trans_array = np.array(trans_array)
 
+        end_time = time.perf_counter()
+        print(f"Quantization time: {(end_time - start_time) * 1000:.2f} ms")
+
     # 5. Entropy coding (compress to in-memory bitstreams)
     def _compress_npz(**arrays):
         buf = io.BytesIO()
         np.savez_compressed(buf, **arrays)
         return buf.getvalue()
 
+    start_time = time.perf_counter()
     bitstreams = {
         'oct':  _compress_npz(points=gaussians.oct, params=gaussians.oct_param),
         'ntk':  _compress_npz(ntk=ntk),
@@ -112,6 +126,8 @@ def encode_mesongs(gaussians: GaussianModel, dataset_args: ModelParams, imp: tor
         'ct':   _compress_npz(i=scaling_q.astype(np.uint8)),
         't':    _compress_npz(t=trans_array),
     }
+    end_time = time.perf_counter()
+    print(f"Entropy coding time: {(end_time - start_time) * 1000:.2f} ms")
 
     # Report sizes
     total_buf_size = 0
@@ -159,14 +175,18 @@ def decode_mesongs(bitstreams, dataset_args):
         gaussians.n_block = n_block
 
         # --- Octree decode -> xyz ---
+        start_time = time.perf_counter()
         octree = oct_vals["points"]
         oct_param = oct_vals["params"]
         gaussians.og_number_points = octree.shape[0]
         dxyz, V = decode_oct(oct_param, octree, depth)
         gaussians._xyz = nn.Parameter(torch.tensor(dxyz, dtype=torch.float, device="cuda").requires_grad_(False))
         n_points = dxyz.shape[0]
+        end_time = time.perf_counter()
+        print(f"Octree decode time: {(end_time - start_time) * 1000:.2f} ms")
 
         # --- VQ lookup -> features_rest ---
+        start_time = time.perf_counter()
         cb_tensor = torch.tensor(cb)
         features_rest = torch.zeros([ntk.shape[0], cb_tensor.shape[1]])
         for i in range(ntk.shape[0]):
@@ -174,13 +194,19 @@ def decode_mesongs(bitstreams, dataset_args):
         gaussians.n_sh = (gaussians.max_sh_degree + 1) ** 2
         features_rest = features_rest.to("cuda").contiguous().reshape(-1, gaussians.n_sh - 1, 3)
         gaussians._features_rest = nn.Parameter(features_rest, requires_grad=False)
-
+        end_time = time.perf_counter()
+        print(f"VQ lookup time: {(end_time - start_time) * 1000:.2f} ms")
+        
         # --- Parse quantized RAHT coefficients and scales ---
+        start_time = time.perf_counter()
         orgb_f    = torch.tensor(oef_vals["f"], dtype=torch.float, device="cuda")
         q_orgb_i  = torch.tensor(oef_vals["i"].astype(np.float32), dtype=torch.float, device="cuda").reshape(7, -1).contiguous().transpose(0, 1)
         q_scale_i = torch.tensor(ct_vals["i"], dtype=torch.float, device="cuda").reshape(3, -1).contiguous().transpose(0, 1)
-
+        end_time = time.perf_counter()
+        print(f"Parse quantized RAHT coefficients and scales time: {(end_time - start_time) * 1000:.2f} ms")
+        
         # --- Dequantize AC coefficients (7 channels) ---
+        start_time = time.perf_counter()
         qa_cnt = 2
         rf_len = q_orgb_i.shape[0]
         assert rf_len + 1 == n_points
@@ -191,7 +217,8 @@ def decode_mesongs(bitstreams, dataset_args):
             rf_orgb.append(rf_i.reshape(-1, 1))
             qa_cnt += 2 * n_block
         rf_orgb = torch.concat(rf_orgb, dim=-1)
-
+        end_time = time.perf_counter()
+        
         # --- Dequantize Scales (3 channels) ---
         scale_len = q_scale_i.shape[0]
         assert scale_len == n_points
@@ -203,8 +230,11 @@ def decode_mesongs(bitstreams, dataset_args):
             qa_cnt += 2 * n_block
         de_scale = torch.concat(de_scale, axis=-1).to("cuda")
         gaussians._scaling = nn.Parameter(de_scale.requires_grad_(False))
-
+        end_time = time.perf_counter()
+        print(f"Dequantize time: {(end_time - start_time) * 1000:.2f} ms")
+        
         # --- Inverse RAHT ---
+        start_time = time.perf_counter()
         C = torch.concat([orgb_f.reshape(1, -1), rf_orgb], 0)
         w, val, reorder = copyAsort(V)
         gaussians.reorder = reorder
@@ -235,6 +265,9 @@ def decode_mesongs(bitstreams, dataset_args):
 
         raht_features[reorder] = OC
 
+        end_time = time.perf_counter()
+        print(f"Inverse RAHT time: {(end_time - start_time) * 1000:.2f} ms")
+        
         # --- Assign decoded attributes ---
         gaussians._opacity = nn.Parameter(raht_features[:, :1].detach(), requires_grad=False)
         gaussians._euler = nn.Parameter(raht_features[:, 1:4].nan_to_num_(0).detach(), requires_grad=False)
