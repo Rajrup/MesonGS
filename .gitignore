@@ -249,3 +249,4 @@ scripts/render_test.sh
 **/build/
 *.egg-info/
 *.code-workspace
+pyrightconfig.json

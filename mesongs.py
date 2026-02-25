@@ -747,7 +747,6 @@ def training(dataset, opt, pipe, testing_iterations, given_ply_path=None):
     gaussians.vq_fe(imp, dataset.codebook_size, dataset.batch_size, dataset.steps)
         
     print('Test Model (offline)...')
-    breakpoint()
     with torch.no_grad():
         psnr_val, ssim_val, lpips_val = evaluate_test(
             scene,
@@ -756,7 +755,6 @@ def training(dataset, opt, pipe, testing_iterations, given_ply_path=None):
             background,
             iteration=0
         )
-        breakpoint()
         zip_size = scene.save_ft("0", pipe, per_channel_quant=dataset.per_channel_quant, per_block_quant=dataset.per_block_quant)
         zip_size = zip_size / 1024 / 1024 # to MB
         row = []

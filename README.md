@@ -128,5 +128,5 @@ ln -s /synology/rajrup/MesonGS/nerf_synthetic data/
 # Set the paths to trained model and data. 
 # Set --iterations to 0 for compression without finetuning. 
 # Add --skip_post_eval to skip tedious testing process.
-bash scripts/mesongs_block.sh 
+bash scripts/mesongs_streaming_block.sh 
 ```

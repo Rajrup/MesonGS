@@ -31,5 +31,4 @@ CUDA_VISIBLE_DEVICES=0 python mesongs_streaming.py -s $DATAPATH \
     --hyper_config $CONFIG \
     --eval \
     --output_path $SAVEPATH \
-    --save_renders \
-    --save_pruned
+    --save_renders
