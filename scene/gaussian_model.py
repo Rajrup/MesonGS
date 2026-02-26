@@ -1134,9 +1134,11 @@ class GaussianModel:
         
         opacities = features[:, :1]
         features_dc = features[:, 1:4].reshape(-1, 1, 3)
-        features_extra = features[:, 4:4 + 3 * (self.n_sh-1)].reshape(-1, self.n_sh - 1, 3)
-        scales=features[:,49:52]
-        rots=features[:,52:56]
+        n_rest = 3 * (self.n_sh - 1)
+        features_extra = features[:, 4:4 + n_rest].reshape(-1, self.n_sh - 1, 3)
+        scale_offset = 4 + n_rest
+        scales = features[:, scale_offset:scale_offset + 3]
+        rots = features[:, scale_offset + 3:scale_offset + 7]
         
         self.oct = oct
         self.oct_param = paramarr
