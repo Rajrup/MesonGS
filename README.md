@@ -8,7 +8,7 @@
 ## Install Dependencies
 
 ```bash
-git clone --recursive https://github.com/ShuzhaoXie/MesonGS.git
+git clone --recursive https://github.com/Rajrup/MesonGS.git
 cd MesonGS
 
 sudo apt install zip unzip
