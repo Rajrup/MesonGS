@@ -1,0 +1,6 @@
+[submodule "LiVoGS"]
+	path = LiVoGS
+	url = https://github.com/haodongw101/LiVoGS.git
+[submodule "DracoGS"]
+	path = DracoGS
+	url = https://github.com/Rajrup/DracoGS.git
