@@ -1,78 +1,60 @@
 #!/bin/bash
 
-# Evaluate DracoGS compression pipeline for a static Gaussian Splat model.
+# Evaluate ImageGS (PNG) compression pipeline for a static Gaussian Splat model.
 #
 # Step 1: Compress + Decompress (compress_decompress_pipeline.py)
 # Step 2: Evaluate quality of GT vs Decompressed (evaluate_decompress.py)
 #
-# Usage: evaluate_dracogs_compression.sh [OPTIONS]
+# Usage: evaluate_imagegs_compression.sh [OPTIONS]
 #   --dataset          Dataset name           (default: db)
 #   --scene            Scene name             (default: drjohnson)
-#   --eg               Position quantization  (default: 16)
-#   --eo               Opacity quantization   (default: 16)
-#   --et               Rotation/scales quant  (default: 16)
-#   --es               SH quantization        (default: 16)
-#   --cl               Compression level      (default: 10)
 
-# DATASET="db"
-# SCENE="drjohnson"
-# SH_DEGREE=3
-
-DATASET="tandt"
-SCENE="truck"
+DATASET="db"
+SCENE="drjohnson"
 SH_DEGREE=3
+N_CLUSTERS=65536
 
-# Draco quantization parameters
-EG=16
-EO=16
-ET=16
-ES=16
-CL=10
+# DATASET="tandt"
+# SCENE="truck"
+# SH_DEGREE=3
+# N_CLUSTERS=65536
 
 # --- Parse named arguments ---
 while [[ $# -gt 0 ]]; do
     case "$1" in
-        --dataset)   DATASET="$2";  shift 2 ;;
-        --scene)     SCENE="$2";    shift 2 ;;
-        --eg)        EG="$2";       shift 2 ;;
-        --eo)        EO="$2";       shift 2 ;;
-        --et)        ET="$2";       shift 2 ;;
-        --es)        ES="$2";       shift 2 ;;
-        --cl)        CL="$2";       shift 2 ;;
+        --dataset)      DATASET="$2";      shift 2 ;;
+        --scene)        SCENE="$2";        shift 2 ;;
         *) echo "Unknown argument: $1"; exit 1 ;;
     esac
 done
 
 DATAPATH="/synology/rajrup/MesonGS/data/${DATASET}/${SCENE}"
 PLY_CKPT="/synology/rajrup/MesonGS/train_output/${DATASET}/${SCENE}"
-OUTPUT_BASE="/synology/rajrup/MesonGS/train_output/${DATASET}/${SCENE}/compression/dracogs/eg_${EG}_eo_${EO}_et_${ET}_es_${ES}_cl_${CL}"
+OUTPUT_BASE="/synology/rajrup/MesonGS/train_output/${DATASET}/${SCENE}/compression/imagegs/default_sort_sh_cluster_${N_CLUSTERS}"
 DECOMP_PLY="${OUTPUT_BASE}/decompressed/point_cloud.ply"
 
 MESONGS_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 
 mkdir -p "${OUTPUT_BASE}"
 
-### 1. DracoGS Compress + Decompress
+### 1. ImageGS Compress + Decompress
 echo "======================================================================"
-echo "Step 1: DracoGS Compress + Decompress"
+echo "Step 1: ImageGS (PNG) Compress + Decompress"
 echo "======================================================================"
 echo "  Dataset:      ${DATAPATH}"
 echo "  PLY ckpt:     ${PLY_CKPT}"
 echo "  Output:       ${OUTPUT_BASE}"
 echo "  Scene:        ${SCENE}"
-echo "  Quant:        eg=${EG} eo=${EO} et=${ET} es=${ES} cl=${CL}"
 echo "======================================================================"
 
 cd "${MESONGS_ROOT}"
 eval "$(conda shell.bash hook 2>/dev/null)"
 conda activate mesongs
 
-python scripts/dracogs_baseline/compress_decompress_pipeline.py \
+python scripts/imagegs_baseline/compress_decompress_pipeline.py \
     --ply_path "${PLY_CKPT}" \
     --output_path "${OUTPUT_BASE}" \
-    --sh_degree ${SH_DEGREE} \
-    --eg ${EG} --eo ${EO} --et ${ET} --es ${ES} \
-    --cl ${CL}
+    --sh_degree ${SH_DEGREE}
 
 ### 2. Evaluate Decompression Quality (PSNR/SSIM/LPIPS vs GT)
 echo ""

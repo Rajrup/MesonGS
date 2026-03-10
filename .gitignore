@@ -250,3 +250,4 @@ scripts/render_test.sh
 *.egg-info/
 *.code-workspace
 pyrightconfig.json
+scripts/plots

@@ -1,28 +1,23 @@
 #!/usr/bin/env python3
 """
-DracoGS Compression + Decompression for VideoGS-trained Gaussian Splat Models.
+DracoGS Compression + Decompression for a static Gaussian Splat model.
 
-For each frame:
-  1. Read PLY from VideoGS checkpoint (own PLY reader)
-  2. Encode via DracoGS (in-memory Draco bitstream)
-  3. Decode via DracoGS (in-memory)
-  4. Save decoded result as VideoGS-compatible PLY (own PLY writer)
-
-Must be run in the videogs conda environment.
+  1. Read PLY (not timed)
+  2. Encode via DracoGS (in-memory Draco bitstream, timed)
+  3. Decode via DracoGS (in-memory, timed)
+  4. Save decoded result as PLY (not timed)
 """
 
 import os
 import sys
-import csv
 import json
 import time
 import argparse
-from tqdm import tqdm
 
 # --- sys.path setup: DracoGS build + compression dirs ---
 _THIS_DIR = os.path.dirname(os.path.abspath(__file__))
-_VIDEOGS_ROOT = os.path.dirname(os.path.dirname(_THIS_DIR))
-_DRACOGS_ROOT = os.path.join(_VIDEOGS_ROOT, "DracoGS")
+_MESONGS_ROOT = os.path.dirname(os.path.dirname(_THIS_DIR))
+_DRACOGS_ROOT = os.path.join(_MESONGS_ROOT, "DracoGS")
 _DRACOGS_BUILD = os.path.join(_DRACOGS_ROOT, "build", "compression")
 _DRACOGS_COMP = os.path.join(_DRACOGS_ROOT, "compression")
 
@@ -57,24 +52,19 @@ def searchForMaxIteration(folder):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
-        description="DracoGS compress + decompress for VideoGS-trained models"
+        description="DracoGS compress + decompress for a static Gaussian Splat model"
     )
-    parser.add_argument("--ply_path", type=str, required=True,
-                        help="Path to checkpoint dir containing frame folders (0, 1, ...)")
-    parser.add_argument("--output_folder", type=str, required=True,
-                        help="Folder for benchmark CSV and metadata")
-    parser.add_argument("--output_ply_folder", type=str, default=None,
-                        help="Folder for decompressed PLY output (omit to skip saving)")
-    parser.add_argument("--frame_start", type=int, default=0)
-    parser.add_argument("--frame_end", type=int, default=200)
-    parser.add_argument("--interval", type=int, default=1)
-    parser.add_argument("--frame_ids", type=str, default=None,
-                        help="Comma-separated frame IDs (overrides --frame_start/--frame_end/--interval)")
+    parser.add_argument("--ply_path", type=str, default=None,
+                        help="Path to checkpoint dir containing point_cloud/ (auto-discovers max iteration)")
+    parser.add_argument("--given_ply_path", type=str, default=None,
+                        help="Direct path to a specific PLY file (overrides --ply_path)")
+    parser.add_argument("--output_path", type=str, required=True,
+                        help="Folder for stats JSON and decompressed PLY output")
+    parser.add_argument("--output_ply_path", type=str, default=None,
+                        help="Path for decompressed PLY file (default: <output_path>/decompressed/point_cloud.ply)")
     parser.add_argument("--sh_degree", type=int, default=3)
-    parser.add_argument("--scene_name", type=str, required=True,
-                        help="HiFi4G sequence name (e.g. 4K_Actor1_Greeting)")
 
-    # LTS quantization parameters (0=lossless, higher=more bits=better quality)
+    # Draco quantization parameters (0=lossless, higher=more bits=better quality)
     parser.add_argument("--eg", type=int, default=DEFAULT_EG, help="Quantization bits for position (0-30)")
     parser.add_argument("--eo", type=int, default=DEFAULT_EO, help="Quantization bits for opacity (0-30)")
     parser.add_argument("--et", type=int, default=DEFAULT_ET, help="Quantization bits for rotation/scales (0-30)")
@@ -83,9 +73,16 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
 
-    os.makedirs(args.output_folder, exist_ok=True)
-    if args.output_ply_folder is not None:
-        os.makedirs(args.output_ply_folder, exist_ok=True)
+    # --- Resolve PLY path ---
+    if args.given_ply_path:
+        ply_file_path = args.given_ply_path
+    elif args.ply_path:
+        ckpt_path = os.path.join(args.ply_path, "point_cloud")
+        max_iter = searchForMaxIteration(ckpt_path)
+        ply_file_path = os.path.join(ckpt_path, f"iteration_{max_iter}", "point_cloud.ply")
+        print(f"Auto-discovered PLY: {ply_file_path}")
+    else:
+        parser.error("Either --given_ply_path or --ply_path must be provided")
 
     # Draco parameters
     qp = args.eg
@@ -98,142 +95,93 @@ if __name__ == "__main__":
     qr = args.et
     cl = args.cl
 
+    os.makedirs(args.output_path, exist_ok=True)
+
     # --- Print configuration ---
     print("=" * 70)
-    print("DracoGS Compress + Decompress Pipeline")
+    print("DracoGS Compress + Decompress Pipeline (Static)")
     print("=" * 70)
-    print(f"  PLY path:           {args.ply_path}")
-    print(f"  Output folder:      {args.output_folder}")
-    print(f"  Output PLY folder:  {args.output_ply_folder or '(skip)'}")
-    if args.frame_ids is not None:
-        frame_list = sorted(int(x.strip()) for x in args.frame_ids.split(","))
-        print(f"  Frames:             {frame_list}")
-    else:
-        frame_list = list(range(args.frame_start, args.frame_end, args.interval))
-        print(f"  Frames:             {args.frame_start} to {args.frame_end} (interval={args.interval})")
-    print(f"  Scene:              {args.scene_name}")
+    print(f"  PLY file:           {ply_file_path}")
+    print(f"  Output path:        {args.output_path}")
     print(f"  SH degree:          {args.sh_degree}")
     print(f"  Quantization:       qp={qp} qfd={qfd} qfr1={qfr1} qfr2={qfr2} qfr3={qfr3} qo={qo} qs={qs} qr={qr}")
     print(f"  Compression level:  {cl}")
     print("=" * 70)
 
-    # --- Per-frame loop ---
-    benchmark_rows = []
+    # --- Load PLY ---
+    gs_data, uncompressed_size_bytes = read_gs_ply(ply_file_path, sh_degree=args.sh_degree)
+    N_original = gs_data["positions"].shape[0]
+    print(f"\nOriginal points: {N_original}")
+    print(f"Uncompressed size: {uncompressed_size_bytes / 1024 / 1024:.2f} MB")
 
-    for frame in tqdm(frame_list, desc="Frames"):
+    # --- Encode (timed) ---
+    t_enc_start = time.perf_counter()
+    bitstream = encode_dracogs(
+        gs_data,
+        qp=qp, qfd=qfd,
+        qfr1=qfr1, qfr2=qfr2, qfr3=qfr3,
+        qo=qo, qs=qs, qr=qr,
+        cl=cl,
+    )
+    t_enc_end = time.perf_counter()
+    encode_time_ms = (t_enc_end - t_enc_start) * 1000
+    compressed_size_bytes = len(bitstream)
 
-        # --- 1. Locate and read PLY ---
-        ckpt_path = os.path.join(args.ply_path, str(frame), "point_cloud")
-        if not os.path.exists(ckpt_path):
-            print(f"Warning: Checkpoint not found: {ckpt_path}, skipping frame {frame}")
-            continue
-        max_iter = searchForMaxIteration(ckpt_path)
-        ply_file_path = os.path.join(ckpt_path, f"iteration_{max_iter}", "point_cloud.ply")
+    # --- Decode (timed) ---
+    t_dec_start = time.perf_counter()
+    gs_decoded = decode_dracogs(bitstream)
+    t_dec_end = time.perf_counter()
+    decode_time_ms = (t_dec_end - t_dec_start) * 1000
+    N_decoded = gs_decoded["positions"].shape[0]
 
-        gs_data, uncompressed_size_bytes = read_gs_ply(ply_file_path, sh_degree=args.sh_degree)
-        N_original = gs_data["positions"].shape[0]
-
-        # --- 2. Encode (timed) ---
-        t_enc_start = time.perf_counter()
-        bitstream = encode_dracogs(
-            gs_data,
-            qp=qp, qfd=qfd,
-            qfr1=qfr1, qfr2=qfr2, qfr3=qfr3,
-            qo=qo, qs=qs, qr=qr,
-            cl=cl,
-        )
-        t_enc_end = time.perf_counter()
-        encode_time_ms = (t_enc_end - t_enc_start) * 1000
-        compressed_size_bytes = len(bitstream)
-
-        # --- 3. Decode (timed) ---
-        t_dec_start = time.perf_counter()
-        gs_decoded = decode_dracogs(bitstream)
-        t_dec_end = time.perf_counter()
-        decode_time_ms = (t_dec_end - t_dec_start) * 1000
-        N_decoded = gs_decoded["positions"].shape[0]
-
-        # --- 4. Save PLY ---
-        if args.output_ply_folder is not None:
-            frame_ply_folder = os.path.join(args.output_ply_folder, str(frame), "point_cloud")
-            os.makedirs(frame_ply_folder, exist_ok=True)
-            ply_out_path = os.path.join(frame_ply_folder, "point_cloud.ply")
-            save_gs_ply(gs_decoded, ply_out_path)
-
-        benchmark_rows.append({
-            "frame": frame,
-            "total_encode_ms": encode_time_ms,
-            "total_decode_ms": decode_time_ms,
-            "original_points": N_original,
-            "decoded_points": N_decoded,
-            "uncompressed_size_bytes": uncompressed_size_bytes,
-            "compressed_size_bytes": compressed_size_bytes,
-        })
-
-        tqdm.write(
-            f"  Frame {frame}: N={N_original}→{N_decoded}, "
-            f"enc={encode_time_ms:.2f} ms, dec={decode_time_ms:.2f} ms, "
-            f"uncomp={uncompressed_size_bytes / 1024 / 1024:.2f} MB, "
-            f"comp={compressed_size_bytes / 1024 / 1024:.2f} MB, "
-            f"ratio={uncompressed_size_bytes / compressed_size_bytes:.2f}x"
-        )
-
-        del gs_data, gs_decoded, bitstream
-
-    # --- Benchmark CSV and summary ---
-    if benchmark_rows:
-        csv_path = os.path.join(args.output_folder, "benchmark_dracogs.csv")
-        with open(csv_path, "w", newline="") as f:
-            w = csv.writer(f)
-            w.writerow(["frame_id", "total_encode_ms", "total_decode_ms",
-                         "original_points", "decoded_points",
-                         "uncompressed_size_bytes", "compressed_size_bytes"])
-            for r in benchmark_rows:
-                w.writerow([
-                    r["frame"],
-                    f"{r['total_encode_ms']:.2f}",
-                    f"{r['total_decode_ms']:.2f}",
-                    r["original_points"],
-                    r["decoded_points"],
-                    r["uncompressed_size_bytes"],
-                    r["compressed_size_bytes"],
-                ])
-
-        n = len(benchmark_rows)
-        total_enc_ms = sum(r["total_encode_ms"] for r in benchmark_rows)
-        total_dec_ms = sum(r["total_decode_ms"] for r in benchmark_rows)
-        total_uncomp = sum(r["uncompressed_size_bytes"] for r in benchmark_rows)
-        total_comp = sum(r["compressed_size_bytes"] for r in benchmark_rows)
-
-        config_out = {
-            "scene_name": args.scene_name,
-            "sh_degree": args.sh_degree,
-            "qp": qp,
-            "qfd": qfd,
-            "qfr1": qfr1,
-            "qfr2": qfr2,
-            "qfr3": qfr3,
-            "qo": qo,
-            "qs": qs,
-            "qr": qr,
-            "cl": cl,
-            "frame_list": [int(f) for f in frame_list],
-        }
-        with open(os.path.join(args.output_folder, "dracogs_config.json"), "w") as f:
-            json.dump(config_out, f, indent=4)
-
-        print("\n" + "=" * 70)
-        print("Benchmark Summary (DracoGS compress + decompress)")
-        print("=" * 70)
-        print(f"  Frames processed:          {n}")
-        print(f"  Total encode time:         {total_enc_ms / 1000:.2f} s  (avg {total_enc_ms / n:.2f} ms/frame)")
-        print(f"  Total decode time:         {total_dec_ms / 1000:.2f} s  (avg {total_dec_ms / n:.2f} ms/frame)")
-        print(f"  Total uncompressed size:   {total_uncomp / 1024 / 1024:.2f} MB  (avg {total_uncomp / n / 1024 / 1024:.2f} MB/frame)")
-        print(f"  Total compressed size:     {total_comp / 1024 / 1024:.2f} MB  (avg {total_comp / n / 1024 / 1024:.2f} MB/frame)")
-        print(f"  Compression ratio:         {total_uncomp / total_comp:.2f}x")
-        print(f"  CSV: {csv_path}")
-        print("=" * 70)
+    # --- Save decoded PLY ---
+    if args.output_ply_path:
+        ply_out_path = args.output_ply_path
     else:
-        print("No frames were processed.")
+        ply_out_path = os.path.join(args.output_path, "decompressed", "point_cloud.ply")
 
+    save_gs_ply(gs_decoded, ply_out_path)
+    print(f"\nSaved decompressed PLY to: {ply_out_path}")
+
+    # --- Statistics ---
+    compression_ratio = uncompressed_size_bytes / compressed_size_bytes
+
+    stats = {
+        "eg": args.eg,
+        "eo": args.eo,
+        "et": args.et,
+        "es": args.es,
+        "cl": cl,
+        "draco_params": {
+            "qp": qp, "qfd": qfd,
+            "qfr1": qfr1, "qfr2": qfr2, "qfr3": qfr3,
+            "qo": qo, "qs": qs, "qr": qr,
+        },
+        "sh_degree": args.sh_degree,
+        "original_points": N_original,
+        "decoded_points": N_decoded,
+        "uncompressed_size_bytes": uncompressed_size_bytes,
+        "compressed_size_bytes": compressed_size_bytes,
+        "compression_ratio": compression_ratio,
+        "encode_time_ms": encode_time_ms,
+        "decode_time_ms": decode_time_ms,
+        "ply_input": ply_file_path,
+        "ply_output": ply_out_path,
+    }
+
+    stats_path = os.path.join(args.output_path, "compression_stats.json")
+    with open(stats_path, "w") as f:
+        json.dump(stats, f, indent=4)
+
+    print("\n" + "=" * 70)
+    print("Compression Summary")
+    print("=" * 70)
+    print(f"  Points: {N_original}  ->  {N_decoded}")
+    print(f"  Encode time:         {encode_time_ms:.2f} ms")
+    print(f"  Decode time:         {decode_time_ms:.2f} ms")
+    print(f"  Uncompressed size:   {uncompressed_size_bytes / 1024 / 1024:.2f} MB")
+    print(f"  Compressed size:     {compressed_size_bytes / 1024 / 1024:.4f} MB")
+    print(f"  Compression ratio:   {compression_ratio:.2f}x")
+    print(f"  Stats JSON:          {stats_path}")
+    print("=" * 70)
     print("Done.")
