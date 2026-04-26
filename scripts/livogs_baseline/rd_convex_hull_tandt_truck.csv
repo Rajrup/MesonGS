@@ -1,0 +1,13 @@
+config_dir,J,qpq,qps,qpo,qpdc,qpac,sh_color_space
+J_15_qpq_0.005_qps_0.004_qpo_0.1_qpdc_0.2_qpac_1.0_klt_nvcomp_ANS,15,0.005,0.004,0.1,0.2,1.0,klt
+J_15_qpq_0.005_qps_0.004_qpo_0.1_qpdc_0.1_qpac_1.0_klt_nvcomp_ANS,15,0.005,0.004,0.1,0.1,1.0,klt
+J_15_qpq_0.005_qps_0.004_qpo_0.1_qpdc_0.1_qpac_0.5_klt_nvcomp_ANS,15,0.005,0.004,0.1,0.1,0.5,klt
+J_15_qpq_0.005_qps_0.004_qpo_0.1_qpdc_0.04_qpac_0.5_klt_nvcomp_ANS,15,0.005,0.004,0.1,0.04,0.5,klt
+J_15_qpq_0.005_qps_0.004_qpo_0.1_qpdc_0.04_qpac_0.2_klt_nvcomp_ANS,15,0.005,0.004,0.1,0.04,0.2,klt
+J_15_qpq_0.005_qps_0.004_qpo_0.1_qpdc_0.02_qpac_0.2_klt_nvcomp_ANS,15,0.005,0.004,0.1,0.02,0.2,klt
+J_15_qpq_0.005_qps_0.004_qpo_0.1_qpdc_0.02_qpac_0.1_klt_nvcomp_ANS,15,0.005,0.004,0.1,0.02,0.1,klt
+J_15_qpq_0.005_qps_0.004_qpo_0.04_qpdc_0.02_qpac_0.1_klt_nvcomp_ANS,15,0.005,0.004,0.04,0.02,0.1,klt
+J_15_qpq_0.005_qps_0.004_qpo_0.04_qpdc_0.01_qpac_0.1_klt_nvcomp_ANS,15,0.005,0.004,0.04,0.01,0.1,klt
+J_15_qpq_0.005_qps_0.004_qpo_0.04_qpdc_0.01_qpac_0.05_klt_nvcomp_ANS,15,0.005,0.004,0.04,0.01,0.05,klt
+J_15_qpq_0.005_qps_0.002_qpo_0.04_qpdc_0.01_qpac_0.05_klt_nvcomp_ANS,15,0.005,0.002,0.04,0.01,0.05,klt
+J_15_qpq_0.001_qps_0.0002_qpo_0.002_qpdc_0.002_qpac_0.05_klt_nvcomp_ANS,15,0.001,0.0002,0.002,0.002,0.05,klt

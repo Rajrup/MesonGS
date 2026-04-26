@@ -183,7 +183,7 @@ def gather_all_results() -> dict[str, dict[str, dict[str, Any]]]:
             if data is not None:
                 all_results[ds_key][pipeline] = data
                 print(f"  [{ds_key}] {PIPELINE_LABELS[pipeline]}: {data['config_dir']}  "
-                      f"PSNR={data['psnr']:.2f}  Size={data['compressed_size_mb']:.2f} MB  "
+                      f"PSNR={data['psnr']:.2f}  SSIM={data['ssim']:.2f}  Size={data['compressed_size_mb']:.2f} MB  "
                       f"Enc={data['encode_time_ms']:.0f} ms  Dec={data['decode_time_ms']:.0f} ms")
     return all_results
 
